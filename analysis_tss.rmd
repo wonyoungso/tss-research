@@ -1,0 +1,177 @@
+---
+title: "Tenant Screening Experiment"
+author: "Wonyoung So"
+date: "3/25/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r packages, include = FALSE, warning = FALSE, message = FALSE}
+require(foreign)
+require(tidyverse)
+require(rdrobust)
+require(stargazer)
+require(httr)
+require(jsonlite)
+require(ggplot2)
+require(dplyr)
+
+```
+
+## Import Data
+
+```{r importdata, include=FALSE, message = FALSE}
+
+df <- fromJSON("./mturk_landlords_decisions_05-2021.json")
+
+df <- df %>% 
+  mutate(decision = if_else(accept_type == 'Yes with security deposit', security_deposit, if_else(accept_type == 'Yes', 0, 3.5)))
+
+type_1_df <- df %>% filter(view_mode == "Type 1") %>% filter(score == "LOW - CLEAN")
+
+```
+
+
+``` {r model for all}
+
+# df <- df %>% filter(!is.na(okay_blanket_policy))
+#df
+df$view_mode <- factor(df$view_mode)
+df$score <- factor(df$score)
+df$okay_blanket_policy <- factor(df$okay_blanket_policy)
+df$view_mode <- relevel(df$view_mode, ref = 'Type 1')
+df$score <- relevel(df$score, ref = 'LOW - CLEAN')
+df$okay_blanket_policy <- relevel(df$okay_blanket_policy, ref = 'No')
+
+df$report_score <- factor(df$report_score)
+model_combined <- lm(decision ~ report_score + okay_blanket_policy, data = df)
+model_combined %>% summary()
+
+model_1 <- lm(decision ~ view_mode, data = df)
+model_1_co <- lm(decision ~ view_mode + okay_blanket_policy, data = df)
+model_1_co %>% summary()
+model_2 <- lm(decision ~ view_mode + score, data = df)
+model_2_co <- lm(decision ~ view_mode + score + okay_blanket_policy, data = df)
+model_3 <- lm(decision ~ view_mode + score + view_mode * score, data = df)
+model_3_co <- lm(decision ~ view_mode + score + view_mode * score+ okay_blanket_policy, data = df)
+
+```
+
+```{r stargazer, results='asis', echo=FALSE}
+stargazer(model_1, model_2, model_3, model_3_co, type="text",
+          column.labels = c("Model 1", "Model 2", "Model 3", "Model 3 w/ cov"), 
+          ci = TRUE,
+          title = "Tenant Screening Reports Behavioral Experiment", star.char = c("*", "**", "***"), star.cutoffs = c(0.05, 0.01, 0.001))
+
+model_3_co %>% summary()
+```
+
+##Review Variables
+```{r summaries}
+#Treatment (79-81) and control (82 &83) for eligible group (father deceased) vs. ineligible (father not deceased)
+table( df$view_mode, df$score)
+
+#Mean college enrollment by age 23, by two-way groupings
+df %>%
+  group_by(view_mode, score) %>%
+  summarize(mean_decision = mean(decision, na.rm = TRUE))
+
+df
+#For the one-way groupings, you can modify the "group_by" option
+df %>%
+  group_by(report_type) %>%
+  summarize(mean_decision = mean(decision, na.rm = TRUE))
+```
+
+
+```{r combined_model plot}
+
+preds_comb <- predict(model_combined)
+preds_comb
+df$mod_comb_preds <- preds_comb
+df
+df %>%
+  group_by(report_score) %>%
+  summarize(mean_security_deposit2= mean(mod_comb_preds, na.rm = TRUE)) 
+
+
+df %>%
+  group_by(view_mode, score) %>%
+  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr)) %>%
+  ggplot(aes(x = view_mode, y = mean_security_deposit, group = score, col = score)) +
+    geom_line(aes(y = mean_security_deposit)) +
+    geom_point(aes(y = mean_security_deposit)) + 
+    geom_errorbar() + 
+    xlab("Report Type") +
+    ylab("Mean Security Deposit")
+```
+
+
+
+``` {r difference in differences}
+preds <- predict(model_3_co, interval = 'confidence')
+preds
+confint(model_3_co)
+df$mod3_preds <- preds[, 'fit']
+df$mod3_lwr <- preds[, 'lwr']
+df$mod3_upr <- preds[, 'upr']
+df
+df %>%
+  group_by(view_mode, score) %>%
+  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr)) 
+df %>%
+  group_by(view_mode, score) %>%
+  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr)) %>%
+  ggplot(aes(x = view_mode, y = mean_security_deposit, group = score, col = score)) +
+    geom_errorbar(aes(ymin=mean_lwr, ymax = mean_upr), width=.05,) +
+    geom_line(aes(y = mean_security_deposit)) +
+    geom_point(aes(y = mean_security_deposit)) + 
+    xlab("Report Type") +
+    ylab("Mean Security Deposit")
+```
+
+
+
+```{r model for criminal and eviction,  results='asis', echo=FALSE}
+eviction_df <- df %>% filter(report_type == 'Eviction')
+criminal_df <- df %>% filter(report_type == 'Criminal')
+eviction_df$score <- relevel(eviction_df$score, ref = 'MID')
+criminal_df$score <- relevel(criminal_df$score, ref = 'MID')
+
+eviction_model_3 <- lm(decision ~ view_mode + score + view_mode * score, data = eviction_df)
+eviction_model_3_co <- lm(decision ~ view_mode + score + view_mode * score + okay_blanket_policy + eviction_after_covid19, data = eviction_df)
+criminal_model_co <- lm(decision ~ view_mode + score + view_mode * score + okay_blanket_policy, data = criminal_df)
+criminal_model_3 <- lm(decision ~ view_mode + score + view_mode * score, data = criminal_df)
+
+stargazer(eviction_model_3_co, criminal_model_co, model_3_co, type="text",
+          column.labels = c("Eviction Records", "Criminal Records", "Combined"),
+          ci = TRUE,
+          title = "Tenant Screening Reports Behavioral Experiment", star.char = c("*", "**", "***"), star.cutoffs = c(0.05, 0.01, 0.001))
+
+criminal_model_3 %>% summary()
+eviction_model_3_co %>% summary()
+model_3_co %>% summary()
+```
+
+
+```{r one-sided t-tests}
+
+res_model_3 <- summary(model_3_co)
+res_model_3
+confint(model_3_co, level = 0.90)
+p_values_one_side <- pt(coef(res_model_3)[, 3], model_3_co$df, lower.tail = FALSE)
+p_values_one_side
+
+res_evic <- summary(eviction_model_3)
+res_evic
+
+criminal_model_3 %>% summary()
+confint(eviction_model_3, level = 0.90)
+evict_p_values <- pt(coef(res_evic)[, 3], eviction_model_3$df, lower.tail = FALSE)
+evict_p_values['view_modeType 3']
+```
+
