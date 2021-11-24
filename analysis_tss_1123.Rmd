@@ -20,4 +20,23 @@ library(miceadds)
 require(texreg)
 library(sandwich)
 library(lmtest)
+library(nnet)
+```
+
+## Import Data
+
+```{r importdata, include=FALSE, message = FALSE}
+tss_df
+tss_df <- fromJSON("./mturk_landlords_decisions_06-2021.json")
+tss_df$accept_type <- as.factor(tss_df$accept_type)
+tss_df$accept_type <- relevel(tss_df$accept_type, ref="Yes")
+
+tss_df$view_mode <- as.factor(tss_df$view_mode)
+tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
+
+tss_df$score <- as.factor(tss_df$score)
+tss_df$score <- relevel(tss_df$score, ref="LOW - CLEAN")
+
+mymodel <- multinom(formula = accept_type ~ score, data=tss_df)
+mymodel %>% summary()
 ```
