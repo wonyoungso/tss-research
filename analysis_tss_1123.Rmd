@@ -1,0 +1,23 @@
+---
+title: "analysis_tss_experiment_1123"
+author: "Wonyoung So"
+date: "11/23/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(foreign)
+require(tidyverse)
+require(rdrobust)
+require(stargazer)
+require(httr)
+require(jsonlite)
+require(ggplot2)
+require(dplyr)
+require(miceadds)
+library(miceadds)
+require(texreg)
+library(sandwich)
+library(lmtest)
+```
