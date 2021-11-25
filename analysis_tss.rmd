@@ -9,6 +9,12 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+df_owners_Sample <- tibble(
+  num_units = c(19283, 2551, 478, 116, 91)
+)
+df_owners_Sample %>% mutate(percentage = num_units / 22519 * 100)
+```
 
 ```{r packages, include = FALSE, warning = FALSE, message = FALSE}
 require(foreign)
@@ -19,20 +25,24 @@ require(httr)
 require(jsonlite)
 require(ggplot2)
 require(dplyr)
-
+require(miceadds)
+library(miceadds)
+require(texreg)
+library(sandwich)
+library(lmtest)
 ```
 
 ## Import Data
 
 ```{r importdata, include=FALSE, message = FALSE}
 
-df <- fromJSON("./mturk_landlords_decisions_05-2021.json")
+df <- fromJSON("./mturk_landlords_decisions_06-2021.json")
 
 df <- df %>% 
   mutate(decision = if_else(accept_type == 'Yes with security deposit', security_deposit, if_else(accept_type == 'Yes', 0, 3.5)))
 
 type_1_df <- df %>% filter(view_mode == "Type 1") %>% filter(score == "LOW - CLEAN")
-
+df
 ```
 
 
@@ -42,23 +52,46 @@ type_1_df <- df %>% filter(view_mode == "Type 1") %>% filter(score == "LOW - CLE
 #df
 df$view_mode <- factor(df$view_mode)
 df$score <- factor(df$score)
+df$number_of_unit <- factor(df$number_of_unit)
+df$race_ethnicity <- factor(df$race_ethnicity)
+df$gender <- factor(df$gender)
 df$okay_blanket_policy <- factor(df$okay_blanket_policy)
+df$income <- factor(df$income)
+
+df$number_of_unit <- relevel(df$number_of_unit, ref = '1 unit')
+df$race_ethnicity <- relevel(df$race_ethnicity, ref = 'White')
+df$gender <- relevel(df$gender, ref = 'Male')
+df$income <- relevel(df$income, ref = 'Under $40,000')
+
+levels(df$race_ethnicity)
+
 df$view_mode <- relevel(df$view_mode, ref = 'Type 1')
 df$score <- relevel(df$score, ref = 'LOW - CLEAN')
 df$okay_blanket_policy <- relevel(df$okay_blanket_policy, ref = 'No')
 
-df$report_score <- factor(df$report_score)
-model_combined <- lm(decision ~ report_score + okay_blanket_policy, data = df)
-model_combined %>% summary()
+options(scipen=999)
+model_3_co_cluster <- lm.cluster(decision ~ view_mode + score + view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + race_ethnicity * score + gender + income, data = df, cluster='user_id')
+model_3_co_cluster %>% summary(scientific=F)
+confint(model_3_co_cluster)
 
-model_1 <- lm(decision ~ view_mode, data = df)
-model_1_co <- lm(decision ~ view_mode + okay_blanket_policy, data = df)
-model_1_co %>% summary()
-model_2 <- lm(decision ~ view_mode + score, data = df)
-model_2_co <- lm(decision ~ view_mode + score + okay_blanket_policy, data = df)
-model_3 <- lm(decision ~ view_mode + score + view_mode * score, data = df)
-model_3_co <- lm(decision ~ view_mode + score + view_mode * score+ okay_blanket_policy, data = df)
 
+model_3_co <- lm(decision ~ view_mode + score + view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + race_ethnicity * score + gender + income, data = df)
+model_3_co %>% summary()
+```
+
+```{r icc}
+
+
+```
+
+```{r}
+
+screenreg(model_3_co_cluster, digits=3)
+```
+
+
+```{r}
+model_3_co %>% summary(cluster="user_id")
 ```
 
 ```{r stargazer, results='asis', echo=FALSE}
@@ -78,8 +111,12 @@ table( df$view_mode, df$score)
 #Mean college enrollment by age 23, by two-way groupings
 df %>%
   group_by(view_mode, score) %>%
-  summarize(mean_decision = mean(decision, na.rm = TRUE))
-
+  summarize(mean_security_deposit = mean(decision, na.rm = TRUE)) %>%
+  ggplot(aes(x = view_mode, y = mean_security_deposit, group = score, col = score)) +
+    geom_line(aes(y = mean_security_deposit)) +
+    geom_point(aes(y = mean_security_deposit)) + 
+    xlab("Report Type") +
+    ylab("Mean Security Deposit")
 df
 #For the one-way groupings, you can modify the "group_by" option
 df %>%
@@ -89,32 +126,56 @@ df %>%
 
 
 ```{r combined_model plot}
-
-preds_comb <- predict(model_combined)
-preds_comb
-df$mod_comb_preds <- preds_comb
 df
-df %>%
-  group_by(report_score) %>%
-  summarize(mean_security_deposit2= mean(mod_comb_preds, na.rm = TRUE)) 
+```
+
+```{r}
+model_3_co_cluster %>% summary()
+
+predict.rob <- function(x,clcov,newdata){
+  if(missing(newdata)){ newdata <- x$model }
+  tt <- terms(x)
+  Terms <- delete.response(tt)
+  m.mat <- model.matrix(Terms,data=newdata)
+  m.coef <- x$coef
+  fit <- as.vector(m.mat %*% x$coef)
+  se.fit <- sqrt(diag(m.mat%*%clcov%*%t(m.mat)))
+  lwr <- fit - 1.96*se.fit
+  upr <- fit + 1.96*se.fit
+  return(data.frame(fit=fit,se.fit=se.fit,lwr=lwr,upr=upr))
+}
+library(sandwich)
+cl_vcov_mat <- vcovCL(model_3_co, cluster = ~user_id)
 
 
-df %>%
-  group_by(view_mode, score) %>%
-  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr)) %>%
-  ggplot(aes(x = view_mode, y = mean_security_deposit, group = score, col = score)) +
-    geom_line(aes(y = mean_security_deposit)) +
-    geom_point(aes(y = mean_security_deposit)) + 
-    geom_errorbar() + 
-    xlab("Report Type") +
-    ylab("Mean Security Deposit")
+preds_norm <- predict(model_3_co, interval = 'confidence')
+preds_clustered <- predict.rob(model_3_co, cl_vcov_mat)
+
+df$norm_preds <- preds_norm[, 'fit']
+df$norm_lwr <- preds_norm[, 'lwr']
+df$norm_upr <- preds_norm[, 'upr']
+
+df$cl_preds <- preds_clustered[, 'fit']
+df$cl_lwr <- preds_clustered[, 'lwr']
+df$cl_upr <- preds_clustered[, 'upr']
+df
+preds_clustered
+coeftest(model_3_co, vcov=vcovCL, cluster=~user_id)
+```
+
+```{r}
+model_3_co_cluster %>% summary()
+```
+
+```{r}
+confint(model_3_co_cluster)
 ```
 
 
-
 ``` {r difference in differences}
-preds <- predict(model_3_co, interval = 'confidence')
+preds <- predict(model_3_co_cluster$lm_res, interval = 'confidence')
 preds
+summary(model_3_co)
 confint(model_3_co)
 df$mod3_preds <- preds[, 'fit']
 df$mod3_lwr <- preds[, 'lwr']
@@ -122,18 +183,58 @@ df$mod3_upr <- preds[, 'upr']
 df
 df %>%
   group_by(view_mode, score) %>%
-  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr)) 
-df %>%
+  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr))
+
+plot_table <- df %>%
   group_by(view_mode, score) %>%
-  summarize(mean_security_deposit = mean(mod3_preds, na.rm = TRUE), mean_lwr = mean(mod3_lwr), mean_upr = mean(mod3_upr)) %>%
-  ggplot(aes(x = view_mode, y = mean_security_deposit, group = score, col = score)) +
-    geom_errorbar(aes(ymin=mean_lwr, ymax = mean_upr), width=.05,) +
-    geom_line(aes(y = mean_security_deposit)) +
+  summarize(mean_security_deposit = mean(cl_preds, na.rm = TRUE), mean_lwr = mean(cl_lwr), mean_upr = mean(cl_upr))
+library(forcats)
+plot_table$score <- as.character(plot_table$score)
+plot_table <-
+  plot_table %>% 
+    mutate(score_name = ifelse(score == "LOW - CLEAN", "LOW", score)) %>%
+    mutate(abbr_view_mode = gsub("Type ", "T", view_mode)) %>%
+    mutate(final_name = factor(paste(abbr_view_mode, score_name, " "))) %>%
+    mutate(score_idx = case_when(
+  score_name == "LOW" ~ 1,
+  score_name == "MID" ~ 2,
+  score_name == "HIGH" ~ 3
+)) %>%
+  arrange(score_idx, abbr_view_mode)
+
+plot_table$final_name <- factor(plot_table$final_name, levels=plot_table$final_name)
+
+plot_table %>%
+  ggplot(aes(x = final_name, y = mean_security_deposit, group = score)) +
+    geom_errorbar(aes(ymin=mean_lwr, ymax = mean_upr), width=.02,) +
     geom_point(aes(y = mean_security_deposit)) + 
-    xlab("Report Type") +
-    ylab("Mean Security Deposit")
+    xlab("Report Type / Score") +
+    ylab("Security Deposit")
+
+
+df$cl_preds <- preds_clustered[, 'fit']
+df$cl_lwr <- preds_clustered[, 'lwr']
+df$cl_upr <- preds_clustered[, 'upr']
+
 ```
 
+```{R}
+# generate data
+set.seed(1)
+df <- matrix(runif(20, 0, 1), nrow = 5) %>% as.data.frame
+
+# put x-values into a data.frame
+x_df <- data.frame(col=c('V1', 'V2', 'V3', 'V4'), 
+                   x=c(1, 3, 7, 9))
+
+# make a tidy version of the data and graph
+df %>%
+    rownames_to_column %>%
+    gather(col, value, -rowname) %>%
+    left_join(x_df, by='col') %>%
+    ggplot(aes(x=x, y=value, color=rowname)) +
+        geom_line()
+```
 
 
 ```{r model for criminal and eviction,  results='asis', echo=FALSE}
@@ -142,19 +243,21 @@ criminal_df <- df %>% filter(report_type == 'Criminal')
 eviction_df$score <- relevel(eviction_df$score, ref = 'MID')
 criminal_df$score <- relevel(criminal_df$score, ref = 'MID')
 
-eviction_model_3 <- lm(decision ~ view_mode + score + view_mode * score, data = eviction_df)
-eviction_model_3_co <- lm(decision ~ view_mode + score + view_mode * score + okay_blanket_policy + eviction_after_covid19, data = eviction_df)
-criminal_model_co <- lm(decision ~ view_mode + score + view_mode * score + okay_blanket_policy, data = criminal_df)
-criminal_model_3 <- lm(decision ~ view_mode + score + view_mode * score, data = criminal_df)
+
+eviction_model_co <- lm.cluster(decision ~ view_mode + score + view_mode * score + okay_blanket_policy + eviction_after_covid19 + number_of_unit + race_ethnicity + race_ethnicity * score + gender + income, data = eviction_df, cluster='user_id')
+criminal_model_co <- lm.cluster(decision ~ view_mode + score + view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + race_ethnicity * score + gender + income, data = criminal_df, cluster='user_id')
+
+
+screenreg(criminal_model_co, digits=3)
 
 stargazer(eviction_model_3_co, criminal_model_co, model_3_co, type="text",
           column.labels = c("Eviction Records", "Criminal Records", "Combined"),
           ci = TRUE,
           title = "Tenant Screening Reports Behavioral Experiment", star.char = c("*", "**", "***"), star.cutoffs = c(0.05, 0.01, 0.001))
+eviction_df %>% nrow()
+eviction_model_co %>% summary()
 
-criminal_model_3 %>% summary()
-eviction_model_3_co %>% summary()
-model_3_co %>% summary()
+criminal_model_co %>% summary()
 ```
 
 
