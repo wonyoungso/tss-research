@@ -26,10 +26,11 @@ library(nnet)
 ## Import Data
 
 ```{r importdata, include=FALSE, message = FALSE}
-tss_df
 tss_df <- fromJSON("./mturk_landlords_decisions_06-2021.json")
-tss_df$accept_type <- as.factor(tss_df$accept_type)
-tss_df$accept_type <- relevel(tss_df$accept_type, ref="Yes")
+
+tss_df <- tss_df %>% mutate(yesno = ifelse(accept_type == "No", 0, 1))
+tss_df <- tss_df %>% 
+  mutate(security_deposit2 = ifelse(is.na(security_deposit), 0, security_deposit))
 
 tss_df$view_mode <- as.factor(tss_df$view_mode)
 tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
@@ -37,6 +38,19 @@ tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
 tss_df$score <- as.factor(tss_df$score)
 tss_df$score <- relevel(tss_df$score, ref="LOW - CLEAN")
 
-mymodel <- multinom(formula = accept_type ~ score, data=tss_df)
-mymodel %>% summary()
+tss_df
+```
+
+
+## Yes - No Logistic Regression
+
+```{r}
+
+
+logit_wo_cluster <- glm(data = tss_df, formula = yesno ~ view_mode * score,  family = "binomial") # Coefficients are in logits (log-odds units)
+
+coeftest(logit_wo_cluster, vcov. = vcovCL(logit_wo_cluster, cluster=tss_df$user_id, type ="HC0"))
+
+
+
 ```
