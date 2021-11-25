@@ -21,6 +21,7 @@ require(texreg)
 library(sandwich)
 library(lmtest)
 library(nnet)
+library(modelsummary)
 ```
 
 ## Import Data
@@ -36,21 +37,28 @@ tss_df$view_mode <- as.factor(tss_df$view_mode)
 tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
 
 tss_df$score <- as.factor(tss_df$score)
-tss_df$score <- relevel(tss_df$score, ref="LOW - CLEAN")
+tss_df$score <- relevel(tss_df$score, ref="MID")
 
 tss_df
 ```
 
 
+
 ## Yes - No Logistic Regression
 
 ```{r}
+logit_wo_cluster <- glm(data = tss_df, formula = yesno ~ view_mode * score, family = "binomial")
+coeftest(logit_wo_cluster, vcov. = vcovCL(logit_wo_cluster,  cluster=tss_df$user_id, type ="HC2"))
 
+model_2 <- miceadds::glm.cluster(data = tss_df, formula = yesno ~ view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + gender + income, cluster="user_id", family = "binomial")
 
-logit_wo_cluster <- glm(data = tss_df, formula = yesno ~ view_mode * score,  family = "binomial") # Coefficients are in logits (log-odds units)
+#coeftest(logit_wo_cluster, vcov. = vcovCL(logit_wo_cluster, cluster=tss_df$user_id, type ="HC0"))
+#coeftest(logit_wo_cluster_w_covariate, vcov. = vcovCL(logit_wo_cluster_w_covariate, cluster=tss_df$user_id, type ="HC0"))
 
-coeftest(logit_wo_cluster, vcov. = vcovCL(logit_wo_cluster, cluster=tss_df$user_id, type ="HC0"))
+model_1
+```
 
+```{r}
 
 
 ```
