@@ -27,8 +27,11 @@ library(estimatr)
 
 ## Import Data
 
-```{r importdata, include=FALSE, message = FALSE}
+```{r importdata, include=FALSE, message = FALSE}}
 tss_df <- fromJSON("./mturk_landlords_decisions_06-2021.json")
+```
+
+```{r meancentering}
 
 tss_df <- tss_df %>% mutate(yesno = ifelse(accept_type == "No", 0, 1))
 tss_df <- tss_df %>% 
@@ -38,7 +41,7 @@ tss_df$view_mode <- as.factor(tss_df$view_mode)
 tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
 
 tss_df$score <- as.factor(tss_df$score)
-tss_df$score <- relevel(tss_df$score, ref="MID")
+tss_df$score <- relevel(tss_df$score, ref="LOW - CLEAN")
 
 tss_df_centered <- tss_df
 
@@ -155,7 +158,14 @@ model_2 <- miceadds::glm.cluster(data = tss_df_centered, formula = yesno ~ view_
 model_2 %>% summary()
 ```
 
+## Security Deposit OLS
 
+```{r}
+
+model_3 <- lm_robust(data = tss_df_centered, formula = yesno ~ view_mode * score, family = "binomial")
+coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centered$user_id, type ="HC2"))
+
+```
 
 
 
