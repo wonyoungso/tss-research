@@ -22,6 +22,7 @@ library(sandwich)
 library(lmtest)
 library(nnet)
 library(modelsummary)
+library(estimatr)
 ```
 
 ## Import Data
@@ -39,26 +40,153 @@ tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
 tss_df$score <- as.factor(tss_df$score)
 tss_df$score <- relevel(tss_df$score, ref="MID")
 
-tss_df
+tss_df_centered <- tss_df
+
+# linearize income
+tss_df_centered <- tss_df_centered %>% 
+  mutate(income_linear = 
+    case_when(
+      income == 'Under $40,000' ~ 40000,
+      income == '$40,001-$60,000' ~ 50000,
+      income == '$60,001-$80,000' ~ 70000,
+      income == '$80,001-$100,000' ~ 90000,
+      income == '$100,001-$120,000' ~ 110000,
+      income == 'More than $120,000' ~ 120000
+    ))
+
+# landlords okay_blanket_policy + number_of_unit + race_ethnicity + gender + income_linear
+
+# first, factorize them
+
+# okay blanket policy's reference category = no
+tss_df_centered <- tss_df_centered %>%
+  mutate(okay_blanket_policy_yes =
+           ifelse(okay_blanket_policy == "Yes", 1, 0)) 
+
+# number_of_units: reference category: 1 unit.
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    nou_2_4_units =
+      ifelse(number_of_unit == "2-4 units", 1, 0),
+    nou_4_10_units =
+      ifelse(number_of_unit == "4-10 units", 1, 0),
+    nou_10_50_units =
+      ifelse(number_of_unit == "10-50 units", 1, 0),
+    nou_50_units =
+      ifelse(number_of_unit == "More than 50 units", 1, 0)
+  )
+
+# race_ethnicity: reference category: white
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    race_asian =
+      ifelse(race_ethnicity == "Asian", 1, 0),
+    race_black =
+      ifelse(race_ethnicity == "Black", 1, 0),
+    race_hispanic =
+      ifelse(race_ethnicity == "Hispanic", 1, 0),
+    race_native =
+      ifelse(race_ethnicity == "Native American", 1, 0),
+    race_other =
+      ifelse(race_ethnicity == "Other", 1, 0)
+  )
+
+# gender: reference category: male
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    gender_female =
+      ifelse(gender == "Female", 1, 0)
+  )
+
+
+# covariate centering
+tss_df_centered$income_linear_cent <- tss_df_centered$income_linear -
+  mean(tss_df_centered$income_linear)
+
+tss_df_centered$okay_blanket_policy_yes_cent <- tss_df_centered$okay_blanket_policy_yes -
+  mean(tss_df_centered$okay_blanket_policy_yes)
+
+tss_df_centered$nou_2_4_units_cent <- tss_df_centered$nou_2_4_units -
+  mean(tss_df_centered$nou_2_4_units)
+
+tss_df_centered$nou_4_10_units_cent <- tss_df_centered$nou_4_10_units -
+  mean(tss_df_centered$nou_4_10_units)
+
+tss_df_centered$nou_10_50_units_cent <- tss_df_centered$nou_10_50_units -
+  mean(tss_df_centered$nou_10_50_units)
+
+tss_df_centered$nou_50_units_cent <- tss_df_centered$nou_50_units -
+  mean(tss_df_centered$nou_50_units)
+
+tss_df_centered$race_asian_cent <- tss_df_centered$race_asian -
+  mean(tss_df_centered$race_asian)
+
+tss_df_centered$race_black_cent <- tss_df_centered$race_black -
+  mean(tss_df_centered$race_black)
+
+tss_df_centered$race_hispanic_cent <- tss_df_centered$race_hispanic -
+  mean(tss_df_centered$race_hispanic)
+
+tss_df_centered$race_native_cent <- tss_df_centered$race_native -
+  mean(tss_df_centered$race_native)
+
+tss_df_centered$race_other_cent <- tss_df_centered$race_other -
+  mean(tss_df_centered$race_other)
+
+tss_df_centered$gender_female_cent <- tss_df_centered$gender_female -
+  mean(tss_df_centered$gender_female)
+
+# final landlord-level covariates:
+# income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent
+
+tss_df_centered
+```
+
+
+## Rental decision Logistic Regression
+
+```{r}
+
+model_1 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score, family = "binomial")
+coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centered$user_id, type ="HC2"))
+
+model_2 <- miceadds::glm.cluster(data = tss_df_centered, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, cluster="user_id", family = "binomial")
+
+model_2 %>% summary()
 ```
 
 
 
-## Yes - No Logistic Regression
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r}
-logit_wo_cluster <- glm(data = tss_df, formula = yesno ~ view_mode * score, family = "binomial")
-coeftest(logit_wo_cluster, vcov. = vcovCL(logit_wo_cluster,  cluster=tss_df$user_id, type ="HC2"))
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
 
-model_2 <- miceadds::glm.cluster(data = tss_df, formula = yesno ~ view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + gender + income, cluster="user_id", family = "binomial")
-
-#coeftest(logit_wo_cluster, vcov. = vcovCL(logit_wo_cluster, cluster=tss_df$user_id, type ="HC0"))
-#coeftest(logit_wo_cluster_w_covariate, vcov. = vcovCL(logit_wo_cluster_w_covariate, cluster=tss_df$user_id, type ="HC0"))
-
-model_1
+logit2prob(2.4 - 1.3 - 1.9 + 0.5)
 ```
 
-```{r}
 
+
+## Yes - No Linear Probability Model
+
+```{r}
+model_1 <- lm_robust(data = tss_df_centered, formula = yesno ~ view_mode * score, cluster=tss_df_centered$user_id, se_type='CR2')
+model_1 %>% summary()
+
+logit_wo_cluster <- miceadds::glm.cluster(data = tss_df_centered, formula = yesno ~ view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + gender + income, cluster="user_id", family = "binomial")
 
 ```
