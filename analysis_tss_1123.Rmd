@@ -162,16 +162,27 @@ model_2 %>% summary()
 
 ```{r}
 
-model_3 <- lm_robust(data = tss_df_centered, formula = yesno ~ view_mode * score, family = "binomial")
-coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centered$user_id, type ="HC2"))
+library(fixest)
+tss_df_sd <- tss_df_centered %>% filter(accept_type == "Yes with security deposit")
 
+model_3 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd, cluster = tss_df_sd$user_id)
+model_3 %>% summary()
+
+model_4 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
+
+model_4 %>% summary()
 ```
 
 
+## power calculation
 
+```{r}
+library(pwr)
 
+pwr.f2.test(u = 21, f2=0.15, sig.level = 0.05, power = 0.8)
 
-
+137 + 21 + 1
+```
 
 
 
