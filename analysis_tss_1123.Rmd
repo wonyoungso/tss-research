@@ -178,7 +178,6 @@ coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centered$user_id, type
 
 
 
-
 ```{r}
 logit2prob <- function(logit){
   odds <- exp(logit)
