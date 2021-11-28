@@ -45,17 +45,19 @@ tss_df$score <- relevel(tss_df$score, ref="LOW - CLEAN")
 
 tss_df_centered <- tss_df
 
-# linearize income
+# linearize and standardized income
 tss_df_centered <- tss_df_centered %>% 
   mutate(income_linear = 
     case_when(
-      income == 'Under $40,000' ~ 40000,
+      income == 'Under $40,000' ~ log(40000),
       income == '$40,001-$60,000' ~ 50000,
       income == '$60,001-$80,000' ~ 70000,
       income == '$80,001-$100,000' ~ 90000,
       income == '$100,001-$120,000' ~ 110000,
       income == 'More than $120,000' ~ 120000
     ))
+
+tss_df_centered$income_stdzd <- scale(tss_df_centered$income_linear)
 
 # landlords okay_blanket_policy + number_of_unit + race_ethnicity + gender + income_linear
 
@@ -101,10 +103,9 @@ tss_df_centered <- tss_df_centered %>%
       ifelse(gender == "Female", 1, 0)
   )
 
-
 # covariate centering
-tss_df_centered$income_linear_cent <- tss_df_centered$income_linear -
-  mean(tss_df_centered$income_linear)
+tss_df_centered$income_linear_cent <- tss_df_centered$income_stdzd -
+  mean(tss_df_centered$income_stdzd)
 
 tss_df_centered$okay_blanket_policy_yes_cent <- tss_df_centered$okay_blanket_policy_yes -
   mean(tss_df_centered$okay_blanket_policy_yes)
@@ -150,12 +151,76 @@ tss_df_centered
 
 ```{r}
 
+# without covariates - all
 model_1 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score, family = "binomial")
-coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centered$user_id, type ="HC2"))
+model_1_rob <- coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centered$user_id, type ="HC2"))
 
-model_2 <- miceadds::glm.cluster(data = tss_df_centered, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, cluster="user_id", family = "binomial")
+pR2_model_1 <- 1 - model_1$deviance / model_1$null.deviance
+pR2_model_1
 
-model_2 %>% summary()
+stargazer(model_1_rob, type = "text")
+
+
+# with covariates - all
+model_2 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
+
+pR2_model_2 <- 1 - model_2$deviance / model_2$null.deviance
+pR2_model_2
+
+model_2_rob <- coeftest(model_2, vcov. = vcovCL(model_2, cluster=tss_df_centered$user_id))
+
+stargazer(model_2_rob, type = "text")
+
+
+# without covariates - evictions
+nrow(eviction_tss_df)
+eviction_tss_df <- tss_df_centered %>% filter(report_type == "Eviction")
+eviction_tss_df$score <- relevel(eviction_tss_df$score, ref="MID")
+model_3 <- glm(data = eviction_tss_df, formula = yesno ~ view_mode * score, family = "binomial")
+model_3_rob <- coeftest(model_3, vcov. = vcovCL(model_3,  cluster=eviction_tss_df$user_id, type ="HC2"))
+
+pR2_model_3 <- 1 - model_3$deviance / model_3$null.deviance
+pR2_model_3
+
+stargazer(model_3_rob, type = "text")
+
+
+
+# with covariates - evictions
+model_4 <- glm(data = eviction_tss_df, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
+
+pR2_model_4 <- 1 - model_4$deviance / model_4$null.deviance
+pR2_model_4
+
+model_4_rob <- coeftest(model_4, vcov. = vcovCL(model_4, cluster=eviction_tss_df$user_id))
+
+stargazer(model_4_rob, type = "text")
+
+
+
+# without covariates - criminal records
+criminal_tss_df <- tss_df_centered %>% filter(report_type == "Criminal")
+criminal_tss_df$score <- relevel(criminal_tss_df$score, ref="MID")
+model_5 <- glm(data = criminal_tss_df, formula = yesno ~ view_mode * score, family = "binomial")
+model_5_rob <- coeftest(model_5, vcov. = vcovCL(model_5,  cluster=criminal_tss_df$user_id, type ="HC2"))
+
+pR2_model_5 <- 1 - model_5$deviance / model_5$null.deviance
+pR2_model_5
+
+stargazer(model_5_rob, type = "text")
+
+
+
+# with covariates - criminal records
+model_6 <- glm(data = criminal_tss_df, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
+
+pR2_model_6 <- 1 - model_5$deviance / model_5$null.deviance
+pR2_model_6
+
+model_6_rob <- coeftest(model_6, vcov. = vcovCL(model_6, cluster=criminal_tss_df$user_id))
+
+stargazer(model_6_rob, type = "text")
+
 ```
 
 ## Security Deposit OLS
@@ -211,7 +276,10 @@ logit2prob <- function(logit){
   return(prob)
 }
 
-logit2prob(2.4 - 1.3 - 1.9 + 0.5)
+1.326 / (1 + 1.326)
+exp(1.326)
+
+logit2prob(1.326)
 ```
 
 
