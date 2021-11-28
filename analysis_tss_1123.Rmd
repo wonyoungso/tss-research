@@ -173,6 +173,20 @@ model_4 <- feols(security_deposit ~ view_mode * score + income_linear_cent + oka
 model_4 %>% summary()
 ```
 
+## Analysis of reports that have eviction records
+
+```{r eviction record analysis}
+
+tss_df_centered %>% filter(report_type == "Criminal") %>% count()
+tss_df_centered %>% filter(report_type == "Eviction") %>% count()
+
+
+tss_df_centered %>% filter(score == "MID" | score == "HIGH") %>% count()
+tss_df_centered %>% filter(score == 'LOW - CLEAN') %>% count()
+
+nrow(tss_df_centered)
+```
+
 
 ## power calculation
 
