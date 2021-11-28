@@ -229,13 +229,22 @@ stargazer(model_6_rob, type = "text")
 
 library(fixest)
 tss_df_sd <- tss_df_centered %>% filter(accept_type == "Yes with security deposit")
+nrow(tss_df_sd)
+model_7 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd, cluster = ~user_id)
+etable(model_7)
 
-model_3 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd, cluster = tss_df_sd$user_id)
-model_3 %>% summary()
+model_8 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
+etable(model_8)
 
-model_4 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
+tss_df_sd_eviction <- tss_df_sd %>% filter(report_type == "Eviction")
+nrow(tss_df_sd_eviction)
+model_9 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd_eviction, cluster = ~user_id)
+etable(model_9)
 
-model_4 %>% summary()
+model_8 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
+etable(model_8)
+
+
 ```
 
 ## Analysis of reports that have eviction records
