@@ -159,19 +159,23 @@ pR2_model_1 <- 1 - model_1$deviance / model_1$null.deviance
 pR2_model_1
 
 stargazer(model_1_rob, type = "text")
-
+#+  nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent
 
 # with covariates - all
-model_2 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
+model_2 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score + nou_10_50_units_cent, family = "binomial")
 
 pR2_model_2 <- 1 - model_2$deviance / model_2$null.deviance
 pR2_model_2
 
 model_2_rob <- coeftest(model_2, vcov. = vcovCL(model_2, cluster=tss_df_centered$user_id))
 
-stargazer(model_2_rob, type = "text")
 
+stargazer(model_1_rob, model_2_rob, type = "text",
+          add.lines = list(c("neg2ll", round(c(model_1$deviance, model_2$deviance), 2)),
+                           c("r2pseudo", round(unlist(lapply(list(model_1, model_2), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))))
+anova(model_1, model_2, test="LRT")
 
+```
 # without covariates - evictions
 nrow(eviction_tss_df)
 eviction_tss_df <- tss_df_centered %>% filter(report_type == "Eviction")
@@ -236,14 +240,30 @@ etable(model_7)
 model_8 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
 etable(model_8)
 
+
 tss_df_sd_eviction <- tss_df_sd %>% filter(report_type == "Eviction")
 nrow(tss_df_sd_eviction)
 model_9 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd_eviction, cluster = ~user_id)
 etable(model_9)
 
-model_8 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
-etable(model_8)
+model_10 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_eviction, cluster = ~user_id)
+etable(model_10)
 
+## OLS criminal
+
+tss_df_sd_criminal <- tss_df_sd %>% filter(report_type == "Criminal")
+tss_df_sd_criminal$score <- relevel(tss_df_sd_criminal$score, ref="MID")
+nrow(tss_df_sd_criminal)
+model_11 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd_criminal, cluster = ~user_id)
+etable(model_11)
+
+model_12 <- feols(security_deposit ~ view_mode * score | user_id, data = tss_df_sd_criminal, cluster = ~user_id)
+
+model_12_1 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_criminal)
+
+model_12_1 %>% summary()
+etable(model_12)
+model_12
 
 ```
 
