@@ -162,7 +162,7 @@ stargazer(model_1_rob, type = "text")
 #+  nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent
 
 # with covariates - all
-model_2 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score + nou_10_50_units_cent, family = "binomial")
+model_2 <- glm(data = tss_df_centered, formula = yesno ~ view_mode * score +  nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
 
 pR2_model_2 <- 1 - model_2$deviance / model_2$null.deviance
 pR2_model_2
@@ -173,11 +173,14 @@ model_2_rob <- coeftest(model_2, vcov. = vcovCL(model_2, cluster=tss_df_centered
 stargazer(model_1_rob, model_2_rob, type = "text",
           add.lines = list(c("neg2ll", round(c(model_1$deviance, model_2$deviance), 2)),
                            c("r2pseudo", round(unlist(lapply(list(model_1, model_2), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))))
-anova(model_1, model_2, test="LRT")
+lrtest(model_1, model_2)
 
 ```
-# without covariates - evictions
-nrow(eviction_tss_df)
+
+
+## with and without covariates - evictions and criminal records
+
+```{r}
 eviction_tss_df <- tss_df_centered %>% filter(report_type == "Eviction")
 eviction_tss_df$score <- relevel(eviction_tss_df$score, ref="MID")
 model_3 <- glm(data = eviction_tss_df, formula = yesno ~ view_mode * score, family = "binomial")
@@ -188,8 +191,6 @@ pR2_model_3
 
 stargazer(model_3_rob, type = "text")
 
-
-
 # with covariates - evictions
 model_4 <- glm(data = eviction_tss_df, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
 
@@ -198,10 +199,18 @@ pR2_model_4
 
 model_4_rob <- coeftest(model_4, vcov. = vcovCL(model_4, cluster=eviction_tss_df$user_id))
 
-stargazer(model_4_rob, type = "text")
 
+stargazer(model_3_rob, model_4_rob, type = "text",
+          add.lines = list(c("neg2ll", round(c(model_3$deviance, model_4$deviance), 2)),
+                           c("r2pseudo", round(unlist(lapply(list(model_3, model_4), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))), star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+lrtest(model_3, model_4)
 
+```
 
+```{r}
 # without covariates - criminal records
 criminal_tss_df <- tss_df_centered %>% filter(report_type == "Criminal")
 criminal_tss_df$score <- relevel(criminal_tss_df$score, ref="MID")
@@ -213,8 +222,6 @@ pR2_model_5
 
 stargazer(model_5_rob, type = "text")
 
-
-
 # with covariates - criminal records
 model_6 <- glm(data = criminal_tss_df, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
 
@@ -223,63 +230,97 @@ pR2_model_6
 
 model_6_rob <- coeftest(model_6, vcov. = vcovCL(model_6, cluster=criminal_tss_df$user_id))
 
-stargazer(model_6_rob, type = "text")
+stargazer(model_5_rob, model_6_rob, type = "text",
+          add.lines = list(c("neg2ll", round(c(model_5$deviance, model_6$deviance), 2)),
+                           c("r2pseudo", round(unlist(lapply(list(model_5, model_6), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))), star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+lrtest(model_5, model_6)
 
 ```
 
 ## Security Deposit OLS
 
+
 ```{r}
-
-library(fixest)
 tss_df_sd <- tss_df_centered %>% filter(accept_type == "Yes with security deposit")
-nrow(tss_df_sd)
-model_7 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd, cluster = ~user_id)
-etable(model_7)
 
-model_8 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd, cluster = tss_df_sd$user_id)
-etable(model_8)
+model_7 <- lm(security_deposit ~ view_mode * score, data = tss_df_sd)
+model_7_rob <- coeftest(model_7, vcov. = vcovCL(model_7,  cluster=tss_df_sd$user_id, type ="HC2"))
+
+model_8 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd)
+model_8_rob <- coeftest(model_8, vcov. = vcovCL(model_8,  cluster=tss_df_sd$user_id))
 
 
+stargazer(model_8_rob, type="text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+
+anova(model_7, model_8)
+
+```
+
+## Security Deposit OLS: Eviction
+
+```{r}
 tss_df_sd_eviction <- tss_df_sd %>% filter(report_type == "Eviction")
+
+tss_df_sd_eviction$score <- as.factor(tss_df_sd_eviction$score)
+tss_df_sd_eviction$score <- relevel(tss_df_sd_eviction$score, ref="MID")
+
 nrow(tss_df_sd_eviction)
-model_9 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd_eviction, cluster = ~user_id)
-etable(model_9)
+model_9 <- lm(security_deposit ~ view_mode * score, data = tss_df_sd_eviction)
+model_9_rob <- coeftest(model_9, vcov. = vcovCL(model_9,  cluster=tss_df_sd_eviction$user_id, type ="HC2"))
 
-model_10 <- feols(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_eviction, cluster = ~user_id)
-etable(model_10)
+stargazer(model_9_rob, type="text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
 
+tss_df_sd_eviction$score <- relevel(tss_df_sd_eviction$score, ref="MID")
+
+model_10 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_eviction)
+model_10_rob <- coeftest(model_10, vcov. = vcovCL(model_10,  cluster=tss_df_sd_eviction$user_id, type ="HC2"))
+
+stargazer(model_10_rob, type="text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+
+stargazer(model_9, model_10, type="text")
+
+anova(model_9, model_10)
+```
+
+## Security Deposit OLS: Criminal
+
+```{r}
 ## OLS criminal
 
 tss_df_sd_criminal <- tss_df_sd %>% filter(report_type == "Criminal")
 tss_df_sd_criminal$score <- relevel(tss_df_sd_criminal$score, ref="MID")
 nrow(tss_df_sd_criminal)
-model_11 <- feols(security_deposit ~ view_mode * score, data = tss_df_sd_criminal, cluster = ~user_id)
-etable(model_11)
+model_11 <- lm(security_deposit ~ view_mode * score, data = tss_df_sd_criminal)
+model_11_rob <- coeftest(model_11, vcov. = vcovCL(model_11,  cluster=tss_df_sd_criminal$user_id, type ="HC2"))
+stargazer(model_11_rob, type="text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
 
-model_12 <- feols(security_deposit ~ view_mode * score | user_id, data = tss_df_sd_criminal, cluster = ~user_id)
+model_12 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_criminal)
+model_12_rob <- coeftest(model_12, vcov. = vcovCL(model_12,  cluster=tss_df_sd_criminal$user_id))
 
-model_12_1 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_criminal)
+model_12 %>% summary()
+stargazer(model_12, type="text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
 
-model_12_1 %>% summary()
-etable(model_12)
-model_12
-
+anova(model_11, model_12)
 ```
 
-## Analysis of reports that have eviction records
-
-```{r eviction record analysis}
-
-tss_df_centered %>% filter(report_type == "Criminal") %>% count()
-tss_df_centered %>% filter(report_type == "Eviction") %>% count()
-
-
-tss_df_centered %>% filter(score == "MID" | score == "HIGH") %>% count()
-tss_df_centered %>% filter(score == 'LOW - CLEAN') %>% count()
-
-nrow(tss_df_centered)
-```
 
 
 ## power calculation
