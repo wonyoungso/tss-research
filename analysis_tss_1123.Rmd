@@ -30,6 +30,7 @@ library(sjPlot)
 
 ```{r importdata, include=FALSE, message = FALSE}}
 tss_df <- fromJSON("./mturk_landlords_decisions_06-2021.json")
+
 ```
 
 ```{r meancentering}
@@ -144,7 +145,8 @@ tss_df_centered$gender_female_cent <- tss_df_centered$gender_female -
 # final landlord-level covariates:
 # income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent
 
-tss_df_centered
+tss_df_centered %>% filter(score == "HIGH" & accept_type == "Yes with security deposit") %>% count()
+
 ```
 
 
