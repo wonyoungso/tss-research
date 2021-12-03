@@ -23,6 +23,7 @@ library(lmtest)
 library(nnet)
 library(modelsummary)
 library(estimatr)
+library(sjPlot)
 ```
 
 ## Import Data
@@ -149,6 +150,7 @@ tss_df_centered
 
 ## Rental decision Logistic Regression
 
+
 ```{r}
 
 # without covariates - all
@@ -158,7 +160,11 @@ model_1_rob <- coeftest(model_1, vcov. = vcovCL(model_1,  cluster=tss_df_centere
 pR2_model_1 <- 1 - model_1$deviance / model_1$null.deviance
 pR2_model_1
 
-stargazer(model_1_rob, type = "text")
+tab_model(model_1, vcov.fun="CL", vcov.type="HC2", digits=3, show.se = TRUE, vcov.args=list(cluster=tss_df_centered$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
+
+model_1_rob
+
+exp(model_1$coefficients)
 #+  nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent
 
 # with covariates - all
@@ -172,11 +178,19 @@ model_2_rob <- coeftest(model_2, vcov. = vcovCL(model_2, cluster=tss_df_centered
 
 stargazer(model_1_rob, model_2_rob, type = "text",
           add.lines = list(c("neg2ll", round(c(model_1$deviance, model_2$deviance), 2)),
-                           c("r2pseudo", round(unlist(lapply(list(model_1, model_2), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))))
+                           c("r2pseudo", round(unlist(lapply(list(model_1, model_2), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))), star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
 lrtest(model_1, model_2)
+
+tab_model(model_2, vcov.fun="CL", vcov.type="HC1", digits=3, show.se = TRUE, vcov.args=list(cluster=tss_df_centered$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
 
 ```
 
+```{r}
+exp(0.44924)
+```
 
 ## with and without covariates - evictions and criminal records
 
@@ -189,7 +203,13 @@ model_3_rob <- coeftest(model_3, vcov. = vcovCL(model_3,  cluster=eviction_tss_d
 pR2_model_3 <- 1 - model_3$deviance / model_3$null.deviance
 pR2_model_3
 
-stargazer(model_3_rob, type = "text")
+tab_model(model_3, vcov.fun="CL", vcov.type="HC2", digits=3, show.se = TRUE, vcov.args=list(cluster=eviction_tss_df$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
+
+stargazer(model_3_rob, type = "text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+
 
 # with covariates - evictions
 model_4 <- glm(data = eviction_tss_df, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
@@ -199,13 +219,13 @@ pR2_model_4
 
 model_4_rob <- coeftest(model_4, vcov. = vcovCL(model_4, cluster=eviction_tss_df$user_id))
 
+tab_model(model_4, vcov.fun="CL", vcov.type="HC1", digits=3, show.se = TRUE, vcov.args=list(cluster=eviction_tss_df$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
 
-stargazer(model_3_rob, model_4_rob, type = "text",
-          add.lines = list(c("neg2ll", round(c(model_3$deviance, model_4$deviance), 2)),
-                           c("r2pseudo", round(unlist(lapply(list(model_3, model_4), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))), star.char = c("†", "*", "**", "***"),
+stargazer(model_4_rob, type = "text", star.char = c("†", "*", "**", "***"),
           star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
           notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
           notes.append = F)
+
 lrtest(model_3, model_4)
 
 ```
@@ -220,7 +240,14 @@ model_5_rob <- coeftest(model_5, vcov. = vcovCL(model_5,  cluster=criminal_tss_d
 pR2_model_5 <- 1 - model_5$deviance / model_5$null.deviance
 pR2_model_5
 
-stargazer(model_5_rob, type = "text")
+
+tab_model(model_5, vcov.fun="CL", vcov.type="HC2", digits=3, show.se = TRUE, vcov.args=list(cluster=criminal_tss_df$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
+
+stargazer(model_5_rob, type = "text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+
 
 # with covariates - criminal records
 model_6 <- glm(data = criminal_tss_df, formula = yesno ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, family = "binomial")
@@ -230,12 +257,13 @@ pR2_model_6
 
 model_6_rob <- coeftest(model_6, vcov. = vcovCL(model_6, cluster=criminal_tss_df$user_id))
 
-stargazer(model_5_rob, model_6_rob, type = "text",
-          add.lines = list(c("neg2ll", round(c(model_5$deviance, model_6$deviance), 2)),
-                           c("r2pseudo", round(unlist(lapply(list(model_5, model_6), FUN = function(x) 1 - x$deviance/x$null.deviance)), 4))), star.char = c("†", "*", "**", "***"),
+tab_model(model_6, vcov.fun="CL", vcov.type="HC1", digits=3, show.se = TRUE, vcov.args=list(cluster=criminal_tss_df$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
+
+stargazer(model_6_rob, type = "text", star.char = c("†", "*", "**", "***"),
           star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
           notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
           notes.append = F)
+
 lrtest(model_5, model_6)
 
 ```
@@ -244,14 +272,20 @@ lrtest(model_5, model_6)
 
 
 ```{r}
+library(sjPlot)
 tss_df_sd <- tss_df_centered %>% filter(accept_type == "Yes with security deposit")
 
 model_7 <- lm(security_deposit ~ view_mode * score, data = tss_df_sd)
 model_7_rob <- coeftest(model_7, vcov. = vcovCL(model_7,  cluster=tss_df_sd$user_id, type ="HC2"))
+tab_model(model_7, vcov.fun="CL", vcov.type="HC2", digits=3, show.se = TRUE, vcov.args=list(cluster=tss_df_sd$user_id))
 
-model_8 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd)
+stargazer(model_7_rob, type="text", star.char = c("†", "*", "**", "***"),
+          star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
+          notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
+          notes.append = F)
+model_8 <- lm(sec4urity_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd)
 model_8_rob <- coeftest(model_8, vcov. = vcovCL(model_8,  cluster=tss_df_sd$user_id))
-
+model_7_rob
 
 stargazer(model_8_rob, type="text", star.char = c("†", "*", "**", "***"),
           star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
@@ -309,7 +343,12 @@ stargazer(model_11_rob, type="text", star.char = c("†", "*", "**", "***"),
           notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
           notes.append = F)
 
+
+tab_model(model_11, vcov.fun="CL", vcov.type="HC2", digits=3, show.se = TRUE, vcov.args=list(cluster=tss_df_sd_criminal$user_id), p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
+
+
 model_12 <- lm(security_deposit ~ view_mode * score + income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent, data = tss_df_sd_criminal)
+
 model_12_rob <- coeftest(model_12, vcov. = vcovCL(model_12,  cluster=tss_df_sd_criminal$user_id))
 
 model_12 %>% summary()
@@ -317,6 +356,9 @@ stargazer(model_12, type="text", star.char = c("†", "*", "**", "***"),
           star.cutoffs = c(0.1, 0.05, 0.01, 0.001),
           notes = c("† p<0.1; * p<0.05; ** p<0.01; *** p<0.001"), 
           notes.append = F)
+
+
+
 
 anova(model_11, model_12)
 ```
@@ -349,7 +391,14 @@ logit2prob <- function(logit){
 exp(1.326)
 
 logit2prob(1.326)
+
+coeff <- -0.590
+se <- 0.498
+exp(coeff)
+exp(coeff + (1.96 * se))
+
 ```
+
 
 
 
