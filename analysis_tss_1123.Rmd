@@ -49,7 +49,7 @@ tss_df_centered <- tss_df
 tss_df_centered <- tss_df_centered %>% 
   mutate(income_linear = 
     case_when(
-      income == 'Under $40,000' ~ log(40000),
+      income == 'Under $40,000' ~ 40000,
       income == '$40,001-$60,000' ~ 50000,
       income == '$60,001-$80,000' ~ 70000,
       income == '$80,001-$100,000' ~ 90000,
