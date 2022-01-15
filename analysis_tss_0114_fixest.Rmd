@@ -1,0 +1,277 @@
+---
+title: "analysis_tss_experiment_1123"
+author: "Wonyoung So"
+date: "11/23/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(foreign)
+require(tidyverse)
+require(rdrobust)
+require(stargazer)
+require(httr)
+require(jsonlite)
+require(ggplot2)
+require(dplyr)
+require(miceadds)
+library(miceadds)
+require(texreg)
+library(sandwich)
+library(lmtest)
+library(nnet)
+library(modelsummary)
+library(estimatr)
+library(sjPlot)
+library(fixest)
+```
+
+## Import Data
+
+```{r importdata, include=FALSE, message = FALSE}}
+tss_df <- fromJSON("./mturk_landlords_decisions_06-2021.json")
+tss_df
+```
+
+```{r meancentering}
+
+tss_df <- tss_df %>% mutate(yesno = ifelse(accept_type == "No", 0, 1))
+tss_df <- tss_df %>% 
+  mutate(security_deposit2 = ifelse(is.na(security_deposit), 0, security_deposit))
+
+tss_df$view_mode <- as.factor(tss_df$view_mode)
+tss_df$view_mode <- relevel(tss_df$view_mode, ref="Type 1")
+
+tss_df$score <- as.factor(tss_df$score)
+tss_df$score <- relevel(tss_df$score, ref="LOW - CLEAN")
+
+tss_df_centered <- tss_df
+
+# linearize and standardized income
+tss_df_centered <- tss_df_centered %>% 
+  mutate(income_linear = 
+    case_when(
+      income == 'Under $40,000' ~ 40000,
+      income == '$40,001-$60,000' ~ 50000,
+      income == '$60,001-$80,000' ~ 70000,
+      income == '$80,001-$100,000' ~ 90000,
+      income == '$100,001-$120,000' ~ 110000,
+      income == 'More than $120,000' ~ 120000
+    ))
+
+tss_df_centered$income_stdzd <- scale(tss_df_centered$income_linear)
+
+# landlords okay_blanket_policy + number_of_unit + race_ethnicity + gender + income_linear
+
+# first, factorize them
+
+# okay blanket policy's reference category = no
+tss_df_centered <- tss_df_centered %>%
+  mutate(okay_blanket_policy_yes =
+           ifelse(okay_blanket_policy == "Yes", 1, 0)) 
+
+# number_of_units: reference category: 1 unit.
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    nou_2_4_units =
+      ifelse(number_of_unit == "2-4 units", 1, 0),
+    nou_4_10_units =
+      ifelse(number_of_unit == "4-10 units", 1, 0),
+    nou_10_50_units =
+      ifelse(number_of_unit == "10-50 units", 1, 0),
+    nou_50_units =
+      ifelse(number_of_unit == "More than 50 units", 1, 0)
+  )
+
+# race_ethnicity: reference category: white
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    race_asian =
+      ifelse(race_ethnicity == "Asian", 1, 0),
+    race_black =
+      ifelse(race_ethnicity == "Black", 1, 0),
+    race_hispanic =
+      ifelse(race_ethnicity == "Hispanic", 1, 0),
+    race_native =
+      ifelse(race_ethnicity == "Native American", 1, 0),
+    race_other =
+      ifelse(race_ethnicity == "Other", 1, 0)
+  )
+
+# gender: reference category: male
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    gender_female =
+      ifelse(gender == "Female", 1, 0)
+  )
+
+# okay_blanket_policy_yes reference category: no
+tss_df_centered <- tss_df_centered %>% 
+  mutate(
+    okay_blanket_policy_yes =
+      ifelse(okay_blanket_policy == "Yes", 1, 0)
+  )
+
+# covariate centering
+tss_df_centered$okay_blanket_policy_yes_cent <- tss_df_centered$okay_blanket_policy_yes -
+  mean(tss_df_centered$okay_blanket_policy_yes)
+
+tss_df_centered$income_linear_cent <- tss_df_centered$income_stdzd -
+  mean(tss_df_centered$income_stdzd)
+
+tss_df_centered$okay_blanket_policy_yes_cent <- tss_df_centered$okay_blanket_policy_yes -
+  mean(tss_df_centered$okay_blanket_policy_yes)
+
+tss_df_centered$nou_2_4_units_cent <- tss_df_centered$nou_2_4_units -
+  mean(tss_df_centered$nou_2_4_units)
+
+tss_df_centered$nou_4_10_units_cent <- tss_df_centered$nou_4_10_units -
+  mean(tss_df_centered$nou_4_10_units)
+
+tss_df_centered$nou_10_50_units_cent <- tss_df_centered$nou_10_50_units -
+  mean(tss_df_centered$nou_10_50_units)
+
+tss_df_centered$nou_50_units_cent <- tss_df_centered$nou_50_units -
+  mean(tss_df_centered$nou_50_units)
+
+tss_df_centered$race_asian_cent <- tss_df_centered$race_asian -
+  mean(tss_df_centered$race_asian)
+
+tss_df_centered$race_black_cent <- tss_df_centered$race_black -
+  mean(tss_df_centered$race_black)
+
+tss_df_centered$race_hispanic_cent <- tss_df_centered$race_hispanic -
+  mean(tss_df_centered$race_hispanic)
+
+tss_df_centered$race_native_cent <- tss_df_centered$race_native -
+  mean(tss_df_centered$race_native)
+
+tss_df_centered$race_other_cent <- tss_df_centered$race_other -
+  mean(tss_df_centered$race_other)
+
+tss_df_centered$gender_female_cent <- tss_df_centered$gender_female -
+  mean(tss_df_centered$gender_female)
+
+# final landlord-level covariates:
+# income_linear_cent + okay_blanket_policy_yes_cent + nou_2_4_units_cent + nou_4_10_units_cent + nou_10_50_units_cent + nou_50_units_cent + race_asian_cent + race_black_cent + race_hispanic_cent + race_native_cent + race_other_cent + gender_female_cent + okay_blanket_policy_yes_cent
+tss_df_centered %>% filter(score == "HIGH" & accept_type == "Yes with security deposit") %>% 
+  ggplot(aes(x=security_deposit, color=view_mode)) +
+    geom_histogram()
+
+tss_df_centered %>% filter(score == "MID" & accept_type == "Yes with security deposit") %>% 
+  ggplot(aes(x=security_deposit, color=view_mode)) +
+    geom_histogram()
+
+```
+
+
+## Rental decision Logistic Regression
+
+```{r}
+# eviction and criminal data preparation
+eviction_tss_df <- tss_df_centered %>% filter(report_type == "Eviction")
+eviction_tss_df$score <- relevel(eviction_tss_df$score, ref="MID")
+
+criminal_tss_df <- tss_df_centered %>% filter(report_type == "Criminal")
+criminal_tss_df$score <- relevel(criminal_tss_df$score, ref="MID")
+
+eviction_tss_df
+eviction_tss_df$view_mode <- as.factor(eviction_tss_df$view_mode)
+eviction_tss_df$view_mode <- relevel(eviction_tss_df$view_mode, ref="Type 1")
+tss_df_centered
+model_logistic_all_raw <- feglm(yesno ~ view_mode, data = tss_df_centered, family=binomial())
+model_logistic_all_fixed <- feglm(yesno ~ view_mode * score | decision_id, data = tss_df_centered, family=binomial())
+
+model_logistic_eviction_raw <- feglm(yesno ~ view_mode * score, data = eviction_tss_df, family=binomial())
+model_logistic_eviction_fixed <- feglm(yesno ~ view_mode * score | user_id, data = eviction_tss_df, family=binomial())
+
+model_logistic_criminal_raw <- feglm(yesno ~ view_mode * score, data = criminal_tss_df, family=binomial())
+model_logistic_criminal_fixed <- feglm(yesno ~ view_mode * score | user_id, data = criminal_tss_df, family=binomial())
+
+etable(model_logistic_all_raw, model_logistic_all_fixed)
+
+etable(model_logistic_all_raw, model_logistic_all_fixed, model_logistic_eviction_raw, model_logistic_eviction_fixed, model_logistic_criminal_raw, model_logistic_criminal_fixed)
+
+tab_model(model_logistic_all_fixed, digits=3, show.se = TRUE, p.style = c("numeric_stars"), p.threshold = c(0.1, 0.05, 0.01, 0.001))
+model_logistic_all_fixed
+```
+## Security deposit ols
+
+```{r}
+
+tss_df_sd <- tss_df_centered %>% filter(accept_type == "Yes with security deposit")
+# eviction and criminal data preparation
+eviction_tss_df_sd <- tss_df_sd %>% filter(report_type == "Eviction")
+eviction_tss_df_sd$score <- relevel(eviction_tss_df_sd$score, ref="MID")
+
+criminal_tss_df_sd <- tss_df_sd %>% filter(report_type == "Criminal")
+criminal_tss_df_sd$score <- relevel(criminal_tss_df_sd$score, ref="MID")
+
+
+model_ols_all_raw <- feols(security_deposit ~ view_mode * score, data = tss_df_sd)
+model_ols_all_fixed <- feols(security_deposit ~ view_mode * score | user_id, data = tss_df_sd)
+
+model_ols_eviction_raw <- feols(security_deposit ~ view_mode * score, data = eviction_tss_df_sd)
+model_ols_eviction_fixed <- feols(security_deposit ~ view_mode * score | user_id, data = eviction_tss_df_sd)
+
+model_ols_criminal_raw <- feols(security_deposit ~ view_mode * score, data = criminal_tss_df_sd)
+model_ols_criminal_fixed <- feols(security_deposit ~ view_mode * score | user_id, data = criminal_tss_df_sd)
+
+
+etable(model_ols_all_raw, model_ols_all_fixed, model_ols_eviction_raw, model_ols_eviction_fixed, model_ols_criminal_raw, model_ols_criminal_fixed)
+
+
+model_ols_eviction_fixed
+```
+
+
+
+
+
+## power calculation
+
+```{r}
+library(pwr)
+
+pwr.f2.test(u = 21, f2=0.15, sig.level = 0.05, power = 0.8)
+
+137 + 21 + 1
+```
+
+
+
+
+
+
+```{r}
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+1.326 / (1 + 1.326)
+exp(1.326)
+
+logit2prob(1.326)
+
+coeff <- -0.590
+se <- 0.498
+exp(coeff)
+exp(coeff + (1.96 * se))
+
+```
+
+
+
+
+## Yes - No Linear Probability Model
+
+```{r}
+model_1 <- lm_robust(data = tss_df_centered, formula = yesno ~ view_mode * score, cluster=tss_df_centered$user_id, se_type='CR2')
+model_1 %>% summary()
+
+logit_wo_cluster <- miceadds::glm.cluster(data = tss_df_centered, formula = yesno ~ view_mode * score + okay_blanket_policy + number_of_unit + race_ethnicity + gender + income, cluster="user_id", family = "binomial")
+
+```
